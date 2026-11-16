@@ -70,7 +70,8 @@ create policy pr_update_admin on public.purchase_requests for update
 
 drop policy if exists pr_delete_own on public.purchase_requests;
 create policy pr_delete_own on public.purchase_requests for delete
-  using (created_by = auth.uid() or public.is_admin());
+  using ((created_by = auth.uid() or public.is_admin())
+         and coalesce(auth.jwt()->>'email','') <> 'admin@acc.local');  -- 共用預設帳號不可刪除
 
 -- 設定管理員(把 email 換成你的):
 -- update public.profiles set role = 'admin'
@@ -103,3 +104,13 @@ update public.purchase_requests set status = '已核准' where status <> '已核
 -- 日期改用台灣時間(原本用 UTC,台灣早上 8 點前會少一天)
 alter table public.purchase_requests alter column sent_date set default (now() at time zone 'Asia/Taipei')::date;
 update public.purchase_requests set sent_date = (created_at at time zone 'Asia/Taipei')::date where sent_date <> (created_at at time zone 'Asia/Taipei')::date;
+
+-- 共用預設帳號 admin@acc.local:禁止修改密碼(資料庫端強制;要解除請 drop trigger block_locked_pw_trg on auth.users)
+create or replace function public.block_locked_pw() returns trigger language plpgsql as $$
+begin
+  raise exception '此帳號不可修改密碼';
+end $$;
+drop trigger if exists block_locked_pw_trg on auth.users;
+create trigger block_locked_pw_trg before update of encrypted_password on auth.users
+  for each row when (old.email = 'admin@acc.local' and old.encrypted_password is distinct from new.encrypted_password)
+  execute function public.block_locked_pw();
