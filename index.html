@@ -158,7 +158,7 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_rVeSI1olnmwCet3IIwgMOg_NInzHB0l';
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const BIG = 10000;
-  const LOCKED_EMAIL = 'admin@acc.local'; // 此共用帳號不可改密碼、不可刪除資料(資料庫端也有限制)
+  const LOCKED_EMAIL = 'admin@acc.local'; // 此共用帳號不可改密碼、不可修改/刪除資料(資料庫端也有限制)
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = n => Number(n).toLocaleString('en-US');
@@ -259,9 +259,9 @@
     const list = filtered();
     $('empty').classList.toggle('hidden', list.length > 0);
     $('rows').innerHTML = list.map(r => {
-      const acts = [
+      const acts = me.email === LOCKED_EMAIL ? [] : [
         `<button class="sm" data-a="edit" data-id="${r.id}">編輯</button>`,
-        ...(me.email === LOCKED_EMAIL ? [] : [`<button class="sm danger" data-a="del" data-id="${r.id}">刪除</button>`])];
+        `<button class="sm danger" data-a="del" data-id="${r.id}">刪除</button>`];
       return `<tr>
         <td>${esc(r.case_no)}</td>
         <td class="num">${fmt(r.amount)}${r.amount >= BIG ? '<span class="badge big">1萬+</span>' : ''}</td>

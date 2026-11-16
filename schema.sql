@@ -61,12 +61,13 @@ create policy pr_insert on public.purchase_requests for insert
 -- 輸入完成即核准:使用者可修改自己的單(狀態固定為已核准)
 drop policy if exists pr_update_own on public.purchase_requests;
 create policy pr_update_own on public.purchase_requests for update
-  using (created_by = auth.uid())
+  using (created_by = auth.uid() and coalesce(auth.jwt()->>'email','') <> 'admin@acc.local')
   with check (created_by = auth.uid() and status = '已核准');
 
 drop policy if exists pr_update_admin on public.purchase_requests;
 create policy pr_update_admin on public.purchase_requests for update
-  using (public.is_admin()) with check (public.is_admin());
+  using (public.is_admin() and coalesce(auth.jwt()->>'email','') <> 'admin@acc.local')
+  with check (public.is_admin());  -- 共用預設帳號 admin@acc.local 不可修改
 
 drop policy if exists pr_delete_own on public.purchase_requests;
 create policy pr_delete_own on public.purchase_requests for delete
