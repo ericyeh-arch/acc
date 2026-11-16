@@ -182,7 +182,12 @@
     $('authBtn').disabled = false;
   };
 
-  $('logoutBtn').onclick = () => db.auth.signOut();
+  // 先立刻回到登入畫面並清掉本機登入資訊,再通知伺服器;避免網路或鎖定卡住時按鈕沒反應
+  $('logoutBtn').onclick = async () => {
+    leave();
+    try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch (_) {}
+    try { await db.auth.signOut({ scope: 'local' }); } catch (_) {}
+  };
 
   // ---------- 修改密碼 ----------
   $('pwBtn').onclick = () => { $('pwForm').reset(); msg($('pMsg')); $('pwDlg').showModal(); };
