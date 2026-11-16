@@ -33,7 +33,7 @@ create table if not exists public.purchase_requests (
   case_no text not null unique,                       -- 購案編號
   amount numeric(12,0) not null check (amount >= 0),  -- 金額
   item text not null default '',                      -- 品名/用途
-  sent_date date not null default current_date,       -- 送出日期
+  sent_date date not null default (now() at time zone 'Asia/Taipei')::date, -- 送出日期(台灣時間)
   status text not null default '已核准'
     check (status in ('待送出','已送出','已核准','已駁回')),
   created_by uuid not null default auth.uid() references public.profiles(id),
@@ -99,3 +99,7 @@ update public.purchase_requests set sent_date = coalesce(sent_date, created_at::
 alter table public.purchase_requests alter column sent_date set default current_date;
 alter table public.purchase_requests alter column sent_date set not null;
 update public.purchase_requests set status = '已核准' where status <> '已核准';
+
+-- 日期改用台灣時間(原本用 UTC,台灣早上 8 點前會少一天)
+alter table public.purchase_requests alter column sent_date set default (now() at time zone 'Asia/Taipei')::date;
+update public.purchase_requests set sent_date = (created_at at time zone 'Asia/Taipei')::date where sent_date <> (created_at at time zone 'Asia/Taipei')::date;
