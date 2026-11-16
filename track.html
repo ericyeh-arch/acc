@@ -25,6 +25,8 @@
   .dot { width:28px; height:28px; border-radius:50%; background:var(--line); margin:0 auto 6px; display:grid; place-items:center; color:#fff; font-size:14px; position:relative; }
   .step.done .dot { background:var(--primary); } .step.done { color:var(--text); }
   .step.ok .dot { background:var(--ok); } .step.bad .dot { background:var(--bad); }
+  .stat-ok { display:flex; align-items:center; justify-content:center; gap:8px; margin:16px 0 6px; font-size:22px; font-weight:600; color:var(--ok); }
+  .stat-ok .dot { width:30px; height:30px; border-radius:50%; background:var(--ok); color:#fff; display:grid; place-items:center; font-size:16px; }
   .meta { text-align:center; color:var(--muted); font-size:13px; }
   .none { text-align:center; color:var(--muted); }
   .err { text-align:center; color:var(--bad); }
@@ -58,13 +60,9 @@
     if (error) { out.innerHTML = '<div class="err">查詢失敗,請稍後再試</div>'; return; }
     if (!data.length) { out.innerHTML = '<div class="none">查無此購案編號,請確認後再試</div>'; return; }
     const r = data[0];
-    // 流程:待送出 → 已送出 → 已核准 / 已駁回
-    const lv = { '待送出':0, '已送出':1, '已核准':2, '已駁回':2 }[r.status];
-    const last = r.status === '已駁回' ? ['已駁回','bad','✕'] : ['已核准', r.status === '已核准' ? 'ok' : '', '✓'];
-    const st = [['待送出', '', '1'], ['已送出', '', '2'], last];
     out.innerHTML = `<div class="no">${esc(r.case_no)}</div>
-      <div class="steps">${st.map((s, i) => `<div class="step ${i <= lv ? 'done' : ''} ${i === 2 && i <= lv ? s[1] : ''}"><div class="dot">${i <= lv ? s[2] : ''}</div>${s[0]}</div>`).join('')}</div>
-      <div class="meta">目前狀態:<b>${esc(r.status)}</b>${r.sent_date ? ` ・ 送出日期 ${md(r.sent_date)}` : ''}</div>`;
+      <div class="stat-ok"><span class="dot">✓</span>${esc(r.status)}</div>
+      <div class="meta">${r.sent_date ? `送出日期 ${md(r.sent_date)}` : ''}</div>`;
   };
 </script>
 </body>

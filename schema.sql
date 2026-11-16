@@ -33,8 +33,8 @@ create table if not exists public.purchase_requests (
   case_no text not null unique,                       -- 購案編號
   amount numeric(12,0) not null check (amount >= 0),  -- 金額
   item text not null default '',                      -- 品名/用途
-  sent_date date,                                     -- 送出日期
-  status text not null default '待送出'
+  sent_date date not null default current_date,       -- 送出日期
+  status text not null default '已核准'
     check (status in ('待送出','已送出','已核准','已駁回')),
   created_by uuid not null default auth.uid() references public.profiles(id),
   created_at timestamptz not null default now()
@@ -56,13 +56,13 @@ create policy pr_select on public.purchase_requests for select
 
 drop policy if exists pr_insert on public.purchase_requests;
 create policy pr_insert on public.purchase_requests for insert
-  with check (created_by = auth.uid() and status in ('待送出','已送出'));
+  with check (created_by = auth.uid() and status = '已核准');
 
--- 一般使用者只能改自己「待送出/已駁回」的單,且不能自行核准
+-- 輸入完成即核准:使用者可修改自己的單(狀態固定為已核准)
 drop policy if exists pr_update_own on public.purchase_requests;
 create policy pr_update_own on public.purchase_requests for update
-  using (created_by = auth.uid() and status in ('待送出','已駁回'))
-  with check (created_by = auth.uid() and status in ('待送出','已送出'));
+  using (created_by = auth.uid())
+  with check (created_by = auth.uid() and status = '已核准');
 
 drop policy if exists pr_update_admin on public.purchase_requests;
 create policy pr_update_admin on public.purchase_requests for update
@@ -70,7 +70,7 @@ create policy pr_update_admin on public.purchase_requests for update
 
 drop policy if exists pr_delete_own on public.purchase_requests;
 create policy pr_delete_own on public.purchase_requests for delete
-  using ((created_by = auth.uid() and status = '待送出') or public.is_admin());
+  using (created_by = auth.uid() or public.is_admin());
 
 -- 設定管理員(把 email 換成你的):
 -- update public.profiles set role = 'admin'
@@ -90,3 +90,10 @@ language sql security definer stable set search_path = public as $$
 $$;
 revoke all on function public.track_request(text) from public;
 grant execute on function public.track_request(text) to anon, authenticated;
+
+-- 既有資料庫升級(「輸入完成即核准」):若表已存在請執行
+alter table public.purchase_requests alter column status set default '已核准';
+update public.purchase_requests set sent_date = coalesce(sent_date, created_at::date) where sent_date is null;
+alter table public.purchase_requests alter column sent_date set default current_date;
+alter table public.purchase_requests alter column sent_date set not null;
+update public.purchase_requests set status = '已核准' where status <> '已核准';

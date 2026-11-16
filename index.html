@@ -92,7 +92,7 @@
       <div class="stat"><span>案件數</span><b id="stCount">0</b></div>
       <div class="stat"><span>總金額</span><b id="stSum">0</b></div>
       <div class="stat"><span>1 萬元以上(件)</span><b id="stBig">0</b></div>
-      <div class="stat"><span>待處理</span><b id="stPending">0</b></div>
+      <div class="stat"><span>本月新增(件)</span><b id="stMonth">0</b></div>
     </div>
 
     <div class="card">
@@ -102,9 +102,10 @@
           <div><label for="fNo">購案編號</label><input id="fNo" required placeholder="例:A115008072" pattern="[A-Za-z][0-9]+(-[0-9]+)?" title="英文字母開頭加數字,可接 -流水號"></div>
           <div><label for="fAmt">金額(元)</label><input id="fAmt" type="number" min="0" step="1" required inputmode="numeric"></div>
           <div><label for="fItem">品名 / 用途</label><input id="fItem" required></div>
+          <div><label for="fDate">送出日期</label><input id="fDate" type="date" required></div>
         </div>
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="primary" id="saveBtn">儲存(待送出)</button>
+          <button class="primary" id="saveBtn">儲存(輸入完成即核准)</button>
           <button type="button" id="cancelEdit" class="hidden">取消編輯</button>
         </div>
         <div class="msg" id="reqMsg"></div>
@@ -120,15 +121,12 @@
           <option value="big">1 萬元以上</option>
           <option value="small">未滿 1 萬</option>
         </select>
-        <select id="fStatus">
-          <option value="">全部狀態</option>
-          <option>待送出</option><option>已送出</option><option>已核准</option><option>已駁回</option>
-        </select>
+        <button type="button" id="exportBtn">匯出 Excel</button>
       </div>
       <div class="tbl-wrap">
         <table>
           <thead><tr>
-            <th>購案編號</th><th class="num">金額</th><th>品名 / 用途</th><th>送出日期</th><th>狀態</th>
+            <th>購案編號</th><th class="num">金額</th><th>品名 / 用途</th><th>送出日期</th>
             <th class="admin-col hidden">申請人</th><th></th>
           </tr></thead>
           <tbody id="rows"></tbody>
@@ -153,6 +151,7 @@
   </form>
 </dialog>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
   const SUPABASE_URL = 'https://yhdqsqnbjqznrjcpoeei.supabase.co';
@@ -235,11 +234,10 @@
   }
 
   function filtered() {
-    const q = $('q').value.trim().toLowerCase(), a = $('fAmtFilter').value, s = $('fStatus').value;
+    const q = $('q').value.trim().toLowerCase(), a = $('fAmtFilter').value;
     return data.filter(r =>
       (!q || r.case_no.toLowerCase().includes(q) || r.item.toLowerCase().includes(q)) &&
-      (!a || (a === 'big' ? r.amount >= BIG : r.amount < BIG)) &&
-      (!s || r.status === s));
+      (!a || (a === 'big' ? r.amount >= BIG : r.amount < BIG)));
   }
 
   function render() {
@@ -247,40 +245,45 @@
     $('stCount').textContent = data.length;
     $('stSum').textContent = fmt(data.reduce((t, r) => t + Number(r.amount), 0));
     $('stBig').textContent = data.filter(r => r.amount >= BIG).length;
-    $('stPending').textContent = data.filter(r => r.status === (admin ? '已送出' : '待送出')).length;
+    const ym = today().slice(0, 7);
+    $('stMonth').textContent = data.filter(r => (r.sent_date || '').startsWith(ym)).length;
 
     const list = filtered();
     $('empty').classList.toggle('hidden', list.length > 0);
     $('rows').innerHTML = list.map(r => {
-      const cls = { '已送出':'sent', '已核准':'ok', '已駁回':'bad' }[r.status] || '';
-      const mine = r.created_by === me.id;
-      const acts = [];
-      if (mine && (r.status === '待送出' || r.status === '已駁回')) {
-        acts.push(`<button class="sm primary" data-a="send" data-id="${r.id}">送出</button>`);
-        acts.push(`<button class="sm" data-a="edit" data-id="${r.id}">編輯</button>`);
-      }
-      if (admin && r.status === '已送出') {
-        acts.push(`<button class="sm primary" data-a="approve" data-id="${r.id}">核准</button>`);
-        acts.push(`<button class="sm danger" data-a="reject" data-id="${r.id}">駁回</button>`);
-      }
-      if ((mine && r.status === '待送出') || admin)
-        acts.push(`<button class="sm danger" data-a="del" data-id="${r.id}">刪除</button>`);
+      const acts = [
+        `<button class="sm" data-a="edit" data-id="${r.id}">編輯</button>`,
+        `<button class="sm danger" data-a="del" data-id="${r.id}">刪除</button>`];
       return `<tr>
         <td>${esc(r.case_no)}</td>
         <td class="num">${fmt(r.amount)}${r.amount >= BIG ? '<span class="badge big">1萬+</span>' : ''}</td>
         <td class="item">${esc(r.item)}</td>
         <td>${md(r.sent_date)}</td>
-        <td><span class="badge ${cls}">${r.status}</span></td>
         ${admin ? `<td>${esc(r.profiles?.name)}</td>` : ''}
         <td><div class="actions">${acts.join('')}</div></td></tr>`;
     }).join('');
   }
 
-  ['q','fAmtFilter','fStatus'].forEach(id => $(id).addEventListener('input', render));
+  ['q','fAmtFilter'].forEach(id => $(id).addEventListener('input', render));
+
+  // ---------- 匯出 Excel(依目前搜尋/篩選結果) ----------
+  $('exportBtn').onclick = () => {
+    const list = filtered();
+    if (!list.length) return alert('沒有可匯出的資料');
+    const admin = profile?.role === 'admin';
+    const head = ['購案編號', '金額', '品名/用途', '送出日期'].concat(admin ? ['申請人'] : []);
+    const body = list.map(r => [r.case_no, Number(r.amount), r.item, r.sent_date || ''].concat(admin ? [r.profiles?.name || ''] : []));
+    const ws = XLSX.utils.aoa_to_sheet([head, ...body]);
+    ws['!cols'] = [{ wch: 16 }, { wch: 12 }, { wch: 30 }, { wch: 12 }].concat(admin ? [{ wch: 12 }] : []);
+    body.forEach((_, i) => { const c = ws['B' + (i + 2)]; if (c) c.z = '#,##0'; });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '請購清單');
+    XLSX.writeFile(wb, `請購清單_${today().replace(/-/g, '')}.xlsx`);
+  };
 
   // ---------- 新增 / 編輯 ----------
   function resetForm() {
-    editingId = null; $('reqForm').reset();
+    editingId = null; $('reqForm').reset(); $('fDate').value = today();
     $('formTitle').textContent = '新增請購';
     $('cancelEdit').classList.add('hidden');
   }
@@ -288,7 +291,7 @@
 
   $('reqForm').onsubmit = async e => {
     e.preventDefault();
-    const row = { case_no: $('fNo').value.trim().toUpperCase(), amount: Number($('fAmt').value), item: $('fItem').value.trim() };
+    const row = { case_no: $('fNo').value.trim().toUpperCase(), amount: Number($('fAmt').value), item: $('fItem').value.trim(), sent_date: $('fDate').value, status: '已核准' };
     $('saveBtn').disabled = true; msg($('reqMsg'));
     const { error } = editingId
       ? await db.from('purchase_requests').update(row).eq('id', editingId)
@@ -306,7 +309,7 @@
     let error;
     if (a === 'edit') {
       editingId = id;
-      $('fNo').value = r.case_no; $('fAmt').value = r.amount; $('fItem').value = r.item;
+      $('fNo').value = r.case_no; $('fAmt').value = r.amount; $('fItem').value = r.item; $('fDate').value = r.sent_date || today();
       $('formTitle').textContent = '編輯請購:' + r.case_no;
       $('cancelEdit').classList.remove('hidden');
       return window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -314,19 +317,13 @@
     if (a === 'del') {
       if (!confirm(`確定刪除 ${r.case_no}?`)) return;
       ({ error } = await db.from('purchase_requests').delete().eq('id', id));
-    } else {
-      const patch = {
-        send:    { status: '已送出', sent_date: today() },
-        approve: { status: '已核准' },
-        reject:  { status: '已駁回' },
-      }[a];
-      ({ error } = await db.from('purchase_requests').update(patch).eq('id', id));
     }
     if (error) return alert('操作失敗:' + error.message);
     load();
   };
 
   // 啟動:還原既有 session
+  $('fDate').value = today();
   db.auth.getSession().then(({ data }) => { if (!data.session) leave(); });
 </script>
 </body>
