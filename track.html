@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>請購進度查詢</title>
+<style>
+  :root { --bg:#f4f6f9; --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb; --primary:#2563eb; --ok:#16a34a; --bad:#dc2626; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --line:#334155; } input { background:#0f172a; color:var(--text); } }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:520px; margin:8vh auto 0; padding:0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px; }
+  h1 { font-size:20px; margin:0 0 4px; text-align:center; }
+  p.sub { text-align:center; color:var(--muted); font-size:13px; margin:0 0 16px; }
+  form { display:flex; gap:8px; }
+  input { flex:1; padding:10px; border:1px solid var(--line); border-radius:6px; font-size:16px; font-family:inherit; }
+  button { padding:10px 16px; border:0; border-radius:6px; background:var(--primary); color:#fff; font-size:15px; font-family:inherit; cursor:pointer; }
+  button:disabled { opacity:.6; }
+  #out { margin-top:18px; }
+  .no { font-size:18px; font-weight:600; text-align:center; }
+  .steps { display:flex; justify-content:space-between; margin:18px 0 8px; position:relative; }
+  .steps::before { content:""; position:absolute; top:13px; left:12%; right:12%; height:3px; background:var(--line); }
+  .step { flex:1; text-align:center; font-size:13px; color:var(--muted); position:relative; }
+  .dot { width:28px; height:28px; border-radius:50%; background:var(--line); margin:0 auto 6px; display:grid; place-items:center; color:#fff; font-size:14px; position:relative; }
+  .step.done .dot { background:var(--primary); } .step.done { color:var(--text); }
+  .step.ok .dot { background:var(--ok); } .step.bad .dot { background:var(--bad); }
+  .meta { text-align:center; color:var(--muted); font-size:13px; }
+  .none { text-align:center; color:var(--muted); }
+  .err { text-align:center; color:var(--bad); }
+  .foot { text-align:center; margin-top:14px; font-size:13px; } .foot a { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>請購進度查詢</h1>
+    <p class="sub">請輸入完整購案編號</p>
+    <form id="f">
+      <input id="no" required placeholder="例:A115008072" autocomplete="off" autocapitalize="characters" pattern="[A-Za-z][0-9]+(-[0-9]+)?" title="英文字母開頭加數字,可接 -流水號">
+      <button id="btn">查詢</button>
+    </form>
+    <div id="out"></div>
+  </div>
+  <div class="foot"><a href="./">承辦人員登入</a></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+  const db = supabase.createClient('https://yhdqsqnbjqznrjcpoeei.supabase.co', 'sb_publishable_rVeSI1olnmwCet3IIwgMOg_NInzHB0l');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const md = s => s ? s.slice(5).replace('-','/') : '';
+  document.getElementById('f').onsubmit = async e => {
+    e.preventDefault();
+    const out = document.getElementById('out'), btn = document.getElementById('btn');
+    btn.disabled = true; out.innerHTML = '';
+    const { data, error } = await db.rpc('track_request', { p_case_no: document.getElementById('no').value });
+    btn.disabled = false;
+    if (error) { out.innerHTML = '<div class="err">查詢失敗,請稍後再試</div>'; return; }
+    if (!data.length) { out.innerHTML = '<div class="none">查無此購案編號,請確認後再試</div>'; return; }
+    const r = data[0];
+    // 流程:待送出 → 已送出 → 已核准 / 已駁回
+    const lv = { '待送出':0, '已送出':1, '已核准':2, '已駁回':2 }[r.status];
+    const last = r.status === '已駁回' ? ['已駁回','bad','✕'] : ['已核准', r.status === '已核准' ? 'ok' : '', '✓'];
+    const st = [['待送出', '', '1'], ['已送出', '', '2'], last];
+    out.innerHTML = `<div class="no">${esc(r.case_no)}</div>
+      <div class="steps">${st.map((s, i) => `<div class="step ${i <= lv ? 'done' : ''} ${i === 2 && i <= lv ? s[1] : ''}"><div class="dot">${i <= lv ? s[2] : ''}</div>${s[0]}</div>`).join('')}</div>
+      <div class="meta">目前狀態:<b>${esc(r.status)}</b>${r.sent_date ? ` ・ 送出日期 ${md(r.sent_date)}` : ''}</div>`;
+  };
+</script>
+</body>
+</html>
