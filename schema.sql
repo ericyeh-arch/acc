@@ -81,11 +81,13 @@ grant usage on schema public to authenticated;
 grant select on public.profiles to authenticated;
 grant select, insert, update, delete on public.purchase_requests to authenticated;
 
--- 公開進度查詢(免登入):只能用「完整購案編號」查,且只回傳編號、狀態、送出日期
-create or replace function public.track_request(p_case_no text)
-returns table(case_no text, status text, sent_date date)
+-- 公開進度查詢(免登入):只能用「完整購案編號」查,只回傳編號、品名/用途、狀態、送出日期
+-- (回傳欄位變動時需先 drop function)
+drop function if exists public.track_request(text);
+create function public.track_request(p_case_no text)
+returns table(case_no text, item text, status text, sent_date date)
 language sql security definer stable set search_path = public as $$
-  select r.case_no, r.status, r.sent_date from public.purchase_requests r
+  select r.case_no, r.item, r.status, r.sent_date from public.purchase_requests r
   where upper(r.case_no) = upper(trim(p_case_no)) limit 1;
 $$;
 revoke all on function public.track_request(text) from public;

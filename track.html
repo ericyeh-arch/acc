@@ -25,6 +25,7 @@
   .dot { width:28px; height:28px; border-radius:50%; background:var(--line); margin:0 auto 6px; display:grid; place-items:center; color:#fff; font-size:14px; position:relative; }
   .step.done .dot { background:var(--primary); } .step.done { color:var(--text); }
   .step.ok .dot { background:var(--ok); } .step.bad .dot { background:var(--bad); }
+  .item { text-align:center; margin-top:6px; color:var(--text); word-break:break-word; }
   .stat-ok { display:flex; align-items:center; justify-content:center; gap:8px; margin:16px 0 6px; font-size:22px; font-weight:600; color:var(--ok); }
   .stat-ok .dot { width:30px; height:30px; border-radius:50%; background:var(--ok); color:#fff; display:grid; place-items:center; font-size:16px; }
   .meta { text-align:center; color:var(--muted); font-size:13px; }
@@ -37,7 +38,7 @@
 <main>
   <div class="card">
     <h1>請購進度查詢</h1>
-    <p class="sub">請輸入完整購案編號</p>
+    <p class="sub">請輸入完整購案編號,查詢品名/用途與進度</p>
     <form id="f">
       <input id="no" required placeholder="例:A115008072" autocomplete="off" autocapitalize="characters" pattern="[A-Za-z][0-9]+(-[0-9]+)?" title="英文字母開頭加數字,可接 -流水號">
       <button id="btn">查詢</button>
@@ -61,6 +62,7 @@
     if (!data.length) { out.innerHTML = '<div class="none">查無此購案編號,請確認後再試</div>'; return; }
     const r = data[0];
     out.innerHTML = `<div class="no">${esc(r.case_no)}</div>
+      <div class="item">${esc(r.item)}</div>
       <div class="stat-ok"><span class="dot">✓</span>${esc(r.status)}</div>
       <div class="meta">${r.sent_date ? `送出日期 ${md(r.sent_date)}` : ''}</div>`;
   };
